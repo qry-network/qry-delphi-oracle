@@ -1,8 +1,8 @@
+cmake_minimum_required(VERSION 3.30)
 project(delphioracle)
 
-set(EOSIO_WASM_OLD_BEHAVIOR "Off")
-find_package(eosio.cdt)
+find_package(cdt)
 
-add_contract( delphioracle delphioracle delphioracle.cpp )
-target_include_directories( delphioracle PUBLIC ${CMAKE_SOURCE_DIR}/../include/delphioracle )
-target_ricardian_directory( delphioracle ${CMAKE_SOURCE_DIR}/../ricardian )
+add_contract(delphioracle delphioracle delphioracle.cpp)
+target_include_directories(delphioracle PUBLIC ${CMAKE_SOURCE_DIR}/../include)
+target_ricardian_directory(delphioracle ${CMAKE_SOURCE_DIR}/../ricardian)

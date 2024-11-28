@@ -12,7 +12,6 @@
   Published under MIT License
 
 */
-
 #include <delphioracle.hpp>
 
 //Write datapoint

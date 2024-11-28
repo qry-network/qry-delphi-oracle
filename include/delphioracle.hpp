@@ -19,7 +19,7 @@
 #include <eosio/asset.hpp>
 #include <eosio/crypto.hpp>
 #include <eosio/system.hpp>
-#include <math.h>
+#include <cmath>
 
 using namespace eosio;
 

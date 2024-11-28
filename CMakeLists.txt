@@ -1,20 +1,23 @@
-
-cmake_minimum_required(VERSION 3.10)
+cmake_minimum_required(VERSION 3.30)
+project(QryDelphiOracle VERSION 1.0.0)
 
 include(ExternalProject)
+
 # if no cdt root is given use default path
-if(EOSIO_CDT_ROOT STREQUAL "" OR NOT EOSIO_CDT_ROOT)
-   find_package(eosio.cdt)
+if(CDT_ROOT STREQUAL "" OR NOT CDT_ROOT)
+    find_package(cdt)
 endif()
 
 ExternalProject_Add(
-   delphioracle_project
-   SOURCE_DIR ${CMAKE_SOURCE_DIR}/src
-   BINARY_DIR ${CMAKE_BINARY_DIR}/delphioracle
-   CMAKE_ARGS -DCMAKE_TOOLCHAIN_FILE=${EOSIO_CDT_ROOT}/lib/cmake/eosio.cdt/EosioWasmToolchain.cmake
-   UPDATE_COMMAND ""
-   PATCH_COMMAND ""
-   TEST_COMMAND ""
-   INSTALL_COMMAND ""
-   BUILD_ALWAYS 1
+    delphioracle_project
+    SOURCE_DIR ${CMAKE_SOURCE_DIR}/src
+    BINARY_DIR ${CMAKE_SOURCE_DIR}/delphioracle
+    CMAKE_ARGS -DCMAKE_TOOLCHAIN_FILE=${CDT_ROOT}/lib/cmake/cdt/CDTWasmToolchain.cmake
+    UPDATE_COMMAND ""
+    PATCH_COMMAND ""
+    TEST_COMMAND ""
+    INSTALL_COMMAND ""
+    BUILD_ALWAYS 1
 )
+
+add_subdirectory(dummy EXCLUDE_FROM_ALL)

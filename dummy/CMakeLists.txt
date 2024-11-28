@@ -1,0 +1,7 @@
+cmake_minimum_required(VERSION 3.5)
+add_executable(dummy dummy.cpp ../src/delphioracle.cpp)
+include_directories(${CDT_ROOT}/include)
+include_directories(${CDT_ROOT}/include/eosiolib/core)
+include_directories(${CDT_ROOT}/include/eosiolib/contracts)
+include_directories(${CDT_ROOT}/include/eosiolib/capi)
+include_directories(${CMAKE_SOURCE_DIR}/include)
