@@ -37,50 +37,29 @@ ACTION delphioracle::write(const name owner, const std::vector<quote> &quotes) {
 }
 
 // Configuration
-ACTION delphioracle::configure(globalinput g) {
+ACTION delphioracle::configure(const globalinput &g, const name default_pair) {
     require_auth(_self);
 
-    globaltable global_table(_self, _self.value);
-    pairstable pairs(_self, _self.value);
-
-    const auto global_itr = global_table.begin();
-
-    constexpr auto default_pair = name("qryusd");
-
-    if (global_itr == global_table.end()) {
-        global_table.emplace(_self, [&](auto &o) {
-            o.id = 1;
-            o.total_datapoints_count = 0;
-            o.total_claimed = asset(0, symbol(SYSTEM_SYMBOL, SYSTEM_PRECISION));
-            o.datapoints_per_instrument = g.datapoints_per_instrument;
-            o.bars_per_instrument = g.bars_per_instrument;
-            o.vote_interval = g.vote_interval;
-            o.write_cooldown = g.write_cooldown;
-            o.approver_threshold = g.approver_threshold;
-            o.approving_oracles_threshold = g.approving_oracles_threshold;
-            o.approving_custodians_threshold = g.approving_custodians_threshold;
-            o.minimum_rank = g.minimum_rank;
-            o.paid = g.paid;
-            o.min_bounty_delay = g.min_bounty_delay;
-            o.new_bounty_delay = g.new_bounty_delay;
-        });
-    } else {
-        global_table.modify(*global_itr, _self, [&](auto &o) {
-            o.datapoints_per_instrument = g.datapoints_per_instrument;
-            o.bars_per_instrument = g.bars_per_instrument;
-            o.vote_interval = g.vote_interval;
-            o.write_cooldown = g.write_cooldown;
-            o.approver_threshold = g.approver_threshold;
-            o.approving_oracles_threshold = g.approving_oracles_threshold;
-            o.approving_custodians_threshold = g.approving_custodians_threshold;
-            o.minimum_rank = g.minimum_rank;
-            o.paid = g.paid;
-            o.min_bounty_delay = g.min_bounty_delay;
-            o.new_bounty_delay = g.new_bounty_delay;
-        });
+    // // set the datapoints counter
+    if (!global_stats.exists()) {
+        global_stats.set(GlobalStatsModel{.total_datapoints = 0}, _self);
     }
 
-    // check if default pair already exists using
+    global_table global(_self, _self.value);
+    global.set(GlobalConfigModel{
+                   .datapoints_per_instrument = g.datapoints_per_instrument,
+                   .bars_per_instrument = g.bars_per_instrument,
+                   .vote_interval = g.vote_interval,
+                   .write_cooldown = g.write_cooldown,
+                   .approver_threshold = g.approver_threshold,
+                   .approving_oracles_threshold = g.approving_oracles_threshold,
+                   .minimum_rank = g.minimum_rank,
+                   .paid = g.paid
+               }, _self);
+
+
+    // check if default pair already exists
+    pairstable pairs(_self, _self.value);
     if (pairs.find(default_pair.value) == pairs.end()) {
         // Add default pair
         pairs.emplace(_self, [&](auto &o) {
@@ -96,11 +75,10 @@ ACTION delphioracle::configure(globalinput g) {
         });
     }
 
-    datapointstable dstore(_self, name("eosusd"_n).value);
-
-    //First data point starts at uint64 max
+    // Create default pair data points
+    data_points_table dstore(_self, default_pair.value);
+    // First data point starts at uint64 max
     uint64_t primary_key = 0;
-
     for (uint16_t i = 0; i < 21; i++) {
         dstore.emplace(_self, [&](auto &s) {
             s.id = primary_key;
@@ -116,7 +94,7 @@ ACTION delphioracle::newpair(pairinput pair) {
     require_auth(_self);
 
     pairstable pairs(_self, _self.value);
-    datapointstable dstore(_self, pair.name.value);
+    data_points_table dstore(_self, pair.name.value);
 
     const auto itr = pairs.find(pair.name.value);
 
@@ -155,7 +133,7 @@ ACTION delphioracle::deletepair(const name pair_name, const std::string &reason)
     const auto pair_itr = pairs.find(pair_name.value);
     check(pair_itr != pairs.end(), "Unable to find pair");
     check(!reason.empty(), "Must supply a reason when deleting a pair");
-    datapointstable datapoints(_self, pair_name.value);
+    data_points_table datapoints(_self, pair_name.value);
     while (datapoints.begin() != datapoints.end()) {
         auto itr = datapoints.end();
         --itr;
@@ -164,136 +142,39 @@ ACTION delphioracle::deletepair(const name pair_name, const std::string &reason)
     pairs.erase(pair_itr);
 }
 
-// Clear all data
+// Clear pair_name data
 ACTION delphioracle::clear(name pair_name) const {
     require_auth(_self);
 
-    globaltable global_table(_self, _self.value);
-    statstable gstore(_self, _self.value);
-    statstable lstore(_self, pair_name.value);
-    datapointstable estore(_self, pair_name.value);
-    pairstable pairs(_self, _self.value);
-    custodianstable ctable(_self, _self.value);
-    hashestable htable(_self, _self.value);
+    // global config singleton
+    global_table global(get_self(), get_self().value);
+    global.remove();
 
-    while (ctable.begin() != ctable.end()) {
-        auto itr = ctable.end();
-        --itr;
-        ctable.erase(itr);
-    }
-
-    while (global_table.begin() != global_table.end()) {
-        auto itr = global_table.end();
-        --itr;
-        global_table.erase(itr);
-    }
-
+    stats_table gstore(_self, _self.value);
     while (gstore.begin() != gstore.end()) {
         auto itr = gstore.end();
         --itr;
         gstore.erase(itr);
     }
 
+    stats_table lstore(_self, pair_name.value);
     while (lstore.begin() != lstore.end()) {
         auto itr = lstore.end();
         --itr;
         lstore.erase(itr);
     }
 
+    data_points_table estore(_self, pair_name.value);
     while (estore.begin() != estore.end()) {
         auto itr = estore.end();
         --itr;
         estore.erase(itr);
     }
 
+    pairstable pairs(_self, _self.value);
     while (pairs.begin() != pairs.end()) {
         auto itr = pairs.end();
         --itr;
         pairs.erase(itr);
     }
-
-    while (htable.begin() != htable.end()) {
-        auto itr = htable.end();
-        --itr;
-        htable.erase(itr);
-    }
 }
-
-// ACTION delphioracle::migratedata() {
-//     require_auth(_self);
-//     statstable stats(name("delphibackup"), name("delphibackup").value);
-//     statstable _stats(_self, _self.value);
-//     check(_stats.begin() == _stats.end(), "stats info already exists; call clear first");
-//     oglobaltable global(name("delphibackup"), name("delphibackup").value);
-//     globaltable _global(_self, _self.value);
-//     auto glitr = global.begin();
-//     _global.emplace(_self, [&](auto &g) {
-//         g.id = glitr->id;
-//         g.total_datapoints_count = glitr->total_datapoints_count;
-//         g.datapoints_per_instrument = 21;
-//         g.bars_per_instrument = 30;
-//         g.vote_interval = 10000;
-//         g.write_cooldown = 55000000;
-//         g.approver_threshold = 1;
-//         g.approving_oracles_threshold = 2;
-//         g.approving_custodians_threshold = 1;
-//         g.minimum_rank = 105;
-//         g.paid = 21;
-//         g.min_bounty_delay = 604800;
-//         g.new_bounty_delay = 259200;
-//     });
-//     auto gitr = stats.begin();
-//     while (gitr != stats.end()) {
-//         _stats.emplace(_self, [&](auto &s) {
-//             s.owner = gitr->owner;
-//             s.timestamp = gitr->timestamp;
-//             s.count = gitr->count;
-//             s.last_claim = gitr->last_claim;
-//             s.balance = gitr->balance;
-//         });
-//         gitr++;
-//     }
-//     npairstable pairs(name("delphibackup"), name("delphibackup").value);
-//     pairstable _pairs(_self, _self.value);
-//     auto pitr = pairs.begin();
-//     while (pitr != pairs.end()) {
-//         _pairs.emplace(_self, [&](auto &p) {
-//             p.active = pitr->active;
-//             p.name = pitr->name;
-//             p.base_symbol = pitr->base_symbol;
-//             p.base_type = pitr->base_type;
-//             p.base_contract = pitr->base_contract;
-//             p.quote_symbol = pitr->quote_symbol;
-//             p.quote_type = pitr->quote_type;
-//             p.quote_contract = pitr->quote_contract;
-//             p.quoted_precision = pitr->quoted_precision;
-//         });
-//         statstable pstats(name("delphibackup"), pitr->name.value);
-//         statstable _pstats(_self, pitr->name.value);
-//         auto sitr = pstats.begin();
-//         while (sitr != pstats.end()) {
-//             _pstats.emplace(_self, [&](auto &s) {
-//                 s.owner = sitr->owner;
-//                 s.timestamp = sitr->timestamp;
-//                 s.count = sitr->count;
-//                 s.last_claim = sitr->last_claim;
-//                 s.balance = sitr->balance;
-//             });
-//             sitr++;
-//         }
-//         datapointstable datapoints(name("delphibackup"), pitr->name.value);
-//         datapointstable _datapoints(_self, pitr->name.value);
-//         auto ditr = datapoints.begin();
-//         while (ditr != datapoints.end()) {
-//             _datapoints.emplace(_self, [&](auto &d) {
-//                 d.id = ditr->id;
-//                 d.owner = ditr->owner;
-//                 d.value = ditr->value;
-//                 d.median = ditr->median;
-//                 d.timestamp = ditr->timestamp;
-//             });
-//             ditr++;
-//         }
-//         pitr++;
-//     }
-// }
